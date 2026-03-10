@@ -3,9 +3,26 @@ import streamlit as st
 import pandas as pd
 import requests
 import sqlite3
-
 import os
+
 SERVER = os.environ.get("SERVER_URL", "http://localhost:8000")
+API_KEY = os.environ.get("API_KEY", "changeme123")
+HEADERS = {"x-api-key": API_KEY}
+
+# --- Login gate ---
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+if not st.session_state.authenticated:
+    st.title("🔐 Parent Dashboard Login")
+    key = st.text_input("API Key", type="password")
+    if st.button("Login"):
+        if key == API_KEY:
+            st.session_state.authenticated = True
+            st.rerun()
+        else:
+            st.error("Invalid API key")
+    st.stop()
 
 st.title("📱 Parent Monitoring Dashboard")
 
@@ -28,7 +45,7 @@ if not df.empty:
 st.subheader("Remote Controls")
 
 def send(cmd):
-    requests.post(f"{SERVER}/command", json={"device": "child_phone", "command": cmd})
+    requests.post(f"{SERVER}/command", json={"device": "child_phone", "command": cmd}, headers=HEADERS)
     st.success(f"Command sent: `{cmd}`")
 
 col1, col2, col3 = st.columns(3)
@@ -71,13 +88,34 @@ if st.button("Send Custom Command") and custom.strip():
 
 st.subheader("Command History")
 try:
-    history = requests.get(f"{SERVER}/commands/history").json().get("data", [])
+    history = requests.get(f"{SERVER}/commands/history", headers=HEADERS).json().get("data", [])
     if history:
         st.dataframe(history)
     else:
         st.info("No commands sent yet.")
 except:
     st.warning("Could not load command history.")
+
+st.subheader("Blocked Apps")
+try:
+    blocked = requests.get(f"{SERVER}/blocked-apps", headers=HEADERS).json().get("data", [])
+    if blocked:
+        for pkg in blocked:
+            col_pkg, col_rm = st.columns([4, 1])
+            col_pkg.code(pkg)
+            if col_rm.button("Remove", key=f"rm_{pkg}"):
+                requests.delete(f"{SERVER}/blocked-apps/{pkg}", headers=HEADERS)
+                st.rerun()
+    else:
+        st.info("No apps blocked.")
+except:
+    st.warning("Could not load blocked apps.")
+
+new_pkg = st.text_input("Package name to block", placeholder="e.g. com.example.app")
+if st.button("Block App") and new_pkg.strip():
+    requests.post(f"{SERVER}/blocked-apps", json={"package": new_pkg.strip()}, headers=HEADERS)
+    st.success(f"Blocked: {new_pkg.strip()}")
+    st.rerun()
 
 st.subheader("Basic Safety Check")
 

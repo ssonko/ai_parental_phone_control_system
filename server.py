@@ -1,11 +1,18 @@
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Depends, Header
 from pydantic import BaseModel
 from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
 import sqlite3
+import os
 
 app = FastAPI()
+
+API_KEY = os.environ.get("API_KEY", "changeme123")
+
+def require_key(x_api_key: str = Header(...)):
+    if x_api_key != API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid API key")
 
 DEVICE_ID = "child_phone"
 
@@ -42,6 +49,12 @@ status TEXT
 )
 """)
 
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS blocked_apps(
+package TEXT UNIQUE
+)
+""")
+
 conn.commit()
 
 class DeviceReport(BaseModel):
@@ -65,7 +78,7 @@ def send_command(device, command):
     conn.commit()
 
 @app.post("/command")
-def command(req: CommandRequest):
+def command(req: CommandRequest, _=Depends(require_key)):
     send_command(req.device, req.command)
     return {"status":"sent"}
 
@@ -148,10 +161,33 @@ scheduler.add_job(bedtime_off, 'cron', hour=WAKE_HOUR)
 scheduler.start()
 
 @app.get("/commands/history")
-def commands_history():
+def commands_history(_=Depends(require_key)):
     cursor.execute("SELECT device, command, status FROM commands ORDER BY rowid DESC LIMIT 50")
     rows = cursor.fetchall()
     return {"data": [{"device": r[0], "command": r[1], "status": r[2]} for r in rows]}
+
+class AppBlock(BaseModel):
+    package: str
+
+@app.get("/blocked-apps")
+def get_blocked_apps(_=Depends(require_key)):
+    cursor.execute("SELECT package FROM blocked_apps")
+    return {"data": [r[0] for r in cursor.fetchall()]}
+
+@app.post("/blocked-apps")
+def add_blocked_app(body: AppBlock, _=Depends(require_key)):
+    try:
+        cursor.execute("INSERT INTO blocked_apps VALUES (?)", (body.package,))
+        conn.commit()
+    except sqlite3.IntegrityError:
+        pass
+    return {"status": "added"}
+
+@app.delete("/blocked-apps/{package:path}")
+def remove_blocked_app(package: str, _=Depends(require_key)):
+    cursor.execute("DELETE FROM blocked_apps WHERE package=?", (package,))
+    conn.commit()
+    return {"status": "removed"}
 
 @app.get("/")
 def root():

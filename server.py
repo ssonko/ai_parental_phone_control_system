@@ -147,6 +147,12 @@ scheduler.add_job(bedtime_on, 'cron', hour=BEDTIME_HOUR)
 scheduler.add_job(bedtime_off, 'cron', hour=WAKE_HOUR)
 scheduler.start()
 
+@app.get("/commands/history")
+def commands_history():
+    cursor.execute("SELECT device, command, status FROM commands ORDER BY rowid DESC LIMIT 50")
+    rows = cursor.fetchall()
+    return {"data": [{"device": r[0], "command": r[1], "status": r[2]} for r in rows]}
+
 @app.get("/")
 def root():
     return {"status":"advanced parental control server running"}

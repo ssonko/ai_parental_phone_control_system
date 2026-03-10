@@ -4,7 +4,8 @@ import pandas as pd
 import requests
 import sqlite3
 
-SERVER="http://localhost:8000"
+import os
+SERVER = os.environ.get("SERVER_URL", "http://localhost:8000")
 
 st.title("📱 Parent Monitoring Dashboard")
 
@@ -26,19 +27,57 @@ if not df.empty:
 
 st.subheader("Remote Controls")
 
-col1,col2,col3=st.columns(3)
+def send(cmd):
+    requests.post(f"{SERVER}/command", json={"device": "child_phone", "command": cmd})
+    st.success(f"Command sent: `{cmd}`")
 
+col1, col2, col3 = st.columns(3)
 with col1:
     if st.button("🔒 Lock Phone"):
-        requests.post(f"{SERVER}/command",json={"device":"child_phone","command":"lock_phone"})
-
+        send("lock_phone")
 with col2:
     if st.button("🌐 Disable Internet"):
-        requests.post(f"{SERVER}/command",json={"device":"child_phone","command":"disable_internet"})
-
+        send("disable_internet")
 with col3:
     if st.button("✅ Enable Internet"):
-        requests.post(f"{SERVER}/command",json={"device":"child_phone","command":"enable_internet"})
+        send("enable_internet")
+
+col4, col5, col6 = st.columns(3)
+with col4:
+    if st.button("📸 Take Screenshot"):
+        send("take_screenshot")
+with col5:
+    if st.button("🔔 Ring Phone"):
+        send("ring_phone")
+with col6:
+    if st.button("📍 Request Location"):
+        send("get_location")
+
+col7, col8, col9 = st.columns(3)
+with col7:
+    if st.button("🔇 Mute Phone"):
+        send("mute_phone")
+with col8:
+    if st.button("🔊 Unmute Phone"):
+        send("unmute_phone")
+with col9:
+    if st.button("🔄 Reboot Device"):
+        send("reboot_device")
+
+st.subheader("Custom Command")
+custom = st.text_input("Command name", placeholder="e.g. clear_cache")
+if st.button("Send Custom Command") and custom.strip():
+    send(custom.strip())
+
+st.subheader("Command History")
+try:
+    history = requests.get(f"{SERVER}/commands/history").json().get("data", [])
+    if history:
+        st.dataframe(history)
+    else:
+        st.info("No commands sent yet.")
+except:
+    st.warning("Could not load command history.")
 
 st.subheader("Basic Safety Check")
 

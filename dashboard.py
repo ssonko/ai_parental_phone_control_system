@@ -2,7 +2,6 @@
 import streamlit as st
 import pandas as pd
 import requests
-import sqlite3
 import os
 
 SERVER = os.environ.get("SERVER_URL", "http://localhost:8000")
@@ -26,11 +25,14 @@ if not st.session_state.authenticated:
 
 st.title("📱 Parent Monitoring Dashboard")
 
-conn = sqlite3.connect("parent_monitor.db")
-df = pd.read_sql("SELECT * FROM logs", conn)
+try:
+    logs_data = requests.get(f"{SERVER}/logs", headers=HEADERS).json().get("data", [])
+    df = pd.DataFrame(logs_data, columns=["device","lat","lon","battery","app","message","timestamp"])
+except:
+    df = pd.DataFrame()
 
 st.subheader("📍 Last Known Location")
-if not df.empty and "lat" in df:
+if not df.empty and "lat" in df.columns:
     coords=df.dropna(subset=["lat","lon"])
     if not coords.empty:
         st.map(coords[['lat','lon']].tail(1))
@@ -39,7 +41,7 @@ st.subheader("Recent Activity")
 st.dataframe(df.tail(20))
 
 st.subheader("Top Apps Used")
-if not df.empty:
+if not df.empty and "app" in df.columns:
     st.bar_chart(df['app'].value_counts())
 
 st.subheader("Remote Controls")
@@ -119,7 +121,7 @@ if st.button("Block App") and new_pkg.strip():
 
 st.subheader("Basic Safety Check")
 
-if not df.empty and "message" in df:
+if not df.empty and "message" in df.columns:
     risky_words=["drug","fight","kill","nude"]
     flagged=df[df["message"].fillna("").str.lower().str.contains("|".join(risky_words))]
     st.write("Flagged Messages")

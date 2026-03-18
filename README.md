@@ -44,3 +44,37 @@ From the dashboard you can:
 Automatically disables internet during sleeping hours.
 
 Example schedule:
+
+10:00 PM → Internet Off  
+6:00 AM → Internet On  
+
+### 📊 Monitoring Dashboard
+The web dashboard shows:
+
+- location map
+- recent activity
+- top apps used
+- flagged messages
+- remote control buttons
+
+---
+
+# 🧰 Tech Stack
+
+### Backend
+- Python
+- FastAPI
+- SQLite
+- APScheduler
+
+### Dashboard
+- Streamlit
+- Pandas
+
+### Phone Automation
+- MacroDroid
+- Tasker
+
+---
+
+# 📂 Project Structure

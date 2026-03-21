@@ -196,6 +196,89 @@ h1,h2,h3 { font-family:'Orbitron',monospace !important; }
     0%,100%{ box-shadow:0 0 8px rgba(0,212,255,0.2); }
     50%    { box-shadow:0 0 22px rgba(0,212,255,0.5),0 0 40px rgba(123,47,255,0.15); }
 }
+
+/* ══ LOGIN PAGE STYLES ══ */
+/* Floating orbs */
+.orb { position:fixed;border-radius:50%;filter:blur(70px);pointer-events:none;z-index:0; }
+.orb1 { width:340px;height:340px;background:rgba(0,212,255,0.09);top:-100px;left:-100px;
+         animation:orbFloat 7s ease-in-out infinite alternate; }
+.orb2 { width:280px;height:280px;background:rgba(123,47,255,0.11);bottom:-80px;right:-80px;
+         animation:orbFloat 9s ease-in-out infinite alternate-reverse; }
+.orb3 { width:200px;height:200px;background:rgba(0,255,128,0.06);top:45%;left:65%;
+         animation:orbFloat 5s ease-in-out infinite alternate; }
+
+/* Card frame */
+.lc {
+    position:relative;
+    background:linear-gradient(145deg,rgba(0,212,255,0.08) 0%,rgba(5,12,28,0.97) 50%,rgba(123,47,255,0.07) 100%);
+    border:1px solid rgba(0,212,255,0.3);
+    border-radius:14px;
+    padding:2.2rem 2rem 1.4rem;
+    backdrop-filter:blur(24px);
+    box-shadow:0 0 50px rgba(0,212,255,0.09),0 0 90px rgba(123,47,255,0.05),
+               inset 0 1px 0 rgba(0,212,255,0.2);
+    animation:cardAppear 0.5s cubic-bezier(.2,.8,.4,1) forwards,
+              borderGlow 4s ease-in-out 0.5s infinite;
+}
+/* Corner brackets */
+.lc-c { position:absolute;width:16px;height:16px; }
+.lc-tl { top:-1px;left:-1px;border-top:2px solid #00d4ff;border-left:2px solid #00d4ff;border-radius:3px 0 0 0; }
+.lc-tr { top:-1px;right:-1px;border-top:2px solid #00d4ff;border-right:2px solid #00d4ff;border-radius:0 3px 0 0; }
+.lc-bl { bottom:-1px;left:-1px;border-bottom:2px solid #00d4ff;border-left:2px solid #00d4ff;border-radius:0 0 0 3px; }
+.lc-br { bottom:-1px;right:-1px;border-bottom:2px solid #00d4ff;border-right:2px solid #00d4ff;border-radius:0 0 3px 0; }
+
+/* Shield icon */
+.ls { font-size:3.6rem;display:block;text-align:center;margin-bottom:0.4rem;
+      animation:shieldPulse 3.5s ease-in-out infinite; }
+/* Title */
+.lt {
+    font-family:'Orbitron',monospace; font-size:1.65rem; font-weight:900;
+    background:linear-gradient(135deg,#00d4ff 0%,#7b2fff 55%,#00d4ff 100%);
+    background-size:200%;
+    -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+    letter-spacing:0.07em; text-align:center; margin-bottom:0.2rem;
+    animation:shimmer 5s linear infinite;
+}
+/* Tagline */
+.ltag {
+    font-family:'Rajdhani',sans-serif; font-size:0.68rem;
+    color:rgba(0,212,255,0.4); letter-spacing:0.3em; text-transform:uppercase;
+    text-align:center; margin-bottom:1.6rem;
+}
+/* Auth separator */
+.las {
+    display:flex; align-items:center; gap:8px; margin-bottom:0.8rem;
+    font-family:'Orbitron',monospace; font-size:0.57rem;
+    color:rgba(0,212,255,0.5); letter-spacing:0.2em; text-transform:uppercase;
+}
+.las::before,.las::after {
+    content:''; flex:1; height:1px;
+    background:linear-gradient(90deg,transparent,rgba(0,212,255,0.35));
+}
+.las::after { background:linear-gradient(90deg,rgba(0,212,255,0.35),transparent); }
+
+/* Status bar */
+.lss {
+    display:flex; justify-content:center; gap:24px; margin-top:1.2rem;
+    font-family:'Share Tech Mono',monospace; font-size:0.58rem;
+    color:rgba(0,212,255,0.28); letter-spacing:0.1em; text-transform:uppercase;
+}
+.lsd {
+    display:inline-block; width:5px; height:5px; border-radius:50%;
+    background:#00ff88; box-shadow:0 0 7px #00ff88; margin-right:5px;
+    animation:pulse 2s infinite; vertical-align:middle;
+}
+
+/* ══ REMOTE CONTROL BUTTON ICONS ══ */
+.ctrl-btn .stButton > button {
+    color: #ffffff !important;
+    font-size: 0.62rem !important;
+    letter-spacing: 0.06em !important;
+}
+.ctrl-btn .stButton > button:hover { color: #ffffff !important; }
+.btn-danger.ctrl-btn .stButton > button  { color:#ffffff !important; }
+.btn-success.ctrl-btn .stButton > button { color:#ffffff !important; }
+.btn-warn.ctrl-btn .stButton > button    { color:#ffffff !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -254,141 +337,45 @@ if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
 if not st.session_state.authenticated:
+    # Orbs rendered once — CSS classes defined in global block above
     st.markdown("""
-    <style>
-    /* Full-screen animated login background */
-    .login-bg {
-        position:fixed; inset:0; z-index:0;
-        background:radial-gradient(ellipse at 50% 38%, #081525 0%, #020508 70%);
-        overflow:hidden;
-    }
-    .login-bg::before {
-        content:''; position:absolute; inset:0;
-        background-image:
-            linear-gradient(rgba(0,212,255,0.055) 1px,transparent 1px),
-            linear-gradient(90deg,rgba(0,212,255,0.055) 1px,transparent 1px);
-        background-size:48px 48px;
-        animation:gridScroll 10s linear infinite;
-    }
-    .login-bg::after {
-        content:''; position:absolute; inset:0;
-        background:repeating-linear-gradient(
-            to bottom, transparent 0px, transparent 3px,
-            rgba(0,0,0,0.15) 3px, rgba(0,0,0,0.15) 4px
-        );
-        pointer-events:none;
-    }
-    .orb { position:fixed;border-radius:50%;filter:blur(70px);pointer-events:none;z-index:1; }
-    .orb1{width:340px;height:340px;background:rgba(0,212,255,0.09);top:-100px;left:-100px;animation:orbFloat 7s ease-in-out infinite alternate;}
-    .orb2{width:280px;height:280px;background:rgba(123,47,255,0.11);bottom:-80px;right:-80px;animation:orbFloat 9s ease-in-out infinite alternate-reverse;}
-    .orb3{width:200px;height:200px;background:rgba(0,255,128,0.06);top:45%;left:65%;animation:orbFloat 5s ease-in-out infinite alternate;}
-
-    .login-wrapper {
-        position:relative; z-index:10;
-        display:flex; flex-direction:column; align-items:center;
-        padding-top:8vh;
-    }
-    /* Hero title above card */
-    .login-hero { text-align:center; margin-bottom:2.4rem; }
-    .login-tagline {
-        font-family:'Rajdhani',sans-serif; font-size:0.72rem;
-        color:rgba(0,212,255,0.42); letter-spacing:0.32em; text-transform:uppercase;
-        margin-top:0.3rem;
-    }
-
-    /* Card */
-    .login-card {
-        position:relative; width:100%; max-width:420px;
-        background:linear-gradient(145deg,rgba(0,212,255,0.07) 0%,rgba(5,12,28,0.96) 45%,rgba(123,47,255,0.06) 100%);
-        border:1px solid rgba(0,212,255,0.28);
-        border-radius:14px; padding:2.4rem 2.2rem 2rem;
-        backdrop-filter:blur(24px);
-        box-shadow:0 0 50px rgba(0,212,255,0.08),0 0 90px rgba(123,47,255,0.05),
-                   inset 0 1px 0 rgba(0,212,255,0.18);
-        animation:cardAppear 0.55s cubic-bezier(.2,.8,.4,1) forwards, borderGlow 4s ease-in-out infinite;
-    }
-    /* Corner brackets */
-    .c{position:absolute;width:16px;height:16px;}
-    .c-tl{top:-1px;left:-1px;border-top:2px solid #00d4ff;border-left:2px solid #00d4ff;border-radius:3px 0 0 0;}
-    .c-tr{top:-1px;right:-1px;border-top:2px solid #00d4ff;border-right:2px solid #00d4ff;border-radius:0 3px 0 0;}
-    .c-bl{bottom:-1px;left:-1px;border-bottom:2px solid #00d4ff;border-left:2px solid #00d4ff;border-radius:0 0 0 3px;}
-    .c-br{bottom:-1px;right:-1px;border-bottom:2px solid #00d4ff;border-right:2px solid #00d4ff;border-radius:0 0 3px 0;}
-
-    /* Shield */
-    .login-shield {
-        font-size:3.8rem; display:block; text-align:center; margin-bottom:0.5rem;
-        animation:shieldPulse 3.5s ease-in-out infinite;
-    }
-    /* Auth row label */
-    .auth-sep {
-        display:flex; align-items:center; gap:8px; margin-bottom:0.7rem;
-        font-family:'Orbitron',monospace; font-size:0.58rem;
-        color:rgba(0,212,255,0.5); letter-spacing:0.2em; text-transform:uppercase;
-    }
-    .auth-sep::before,.auth-sep::after {
-        content:''; flex:1; height:1px;
-        background:linear-gradient(90deg,transparent,rgba(0,212,255,0.3));
-    }
-    .auth-sep::after { background:linear-gradient(90deg,rgba(0,212,255,0.3),transparent); }
-
-    /* System status bar */
-    .sys-status {
-        display:flex; justify-content:center; gap:28px; margin-top:1.6rem;
-        font-family:'Share Tech Mono',monospace; font-size:0.6rem;
-        color:rgba(0,212,255,0.28); letter-spacing:0.12em; text-transform:uppercase;
-    }
-    .sys-dot {
-        display:inline-block; width:5px; height:5px; border-radius:50%;
-        background:#00ff88; box-shadow:0 0 7px #00ff88; margin-right:5px;
-        animation:pulse 2s infinite;
-    }
-    .sys-dot.red { background:#ff3040; box-shadow:0 0 7px #ff3040; }
-    </style>
-
-    <div class="login-bg"></div>
-    <div class="orb orb1"></div><div class="orb orb2"></div><div class="orb orb3"></div>
-
-    <div class="login-wrapper">
-        <div class="login-hero">
-            <div style="font-family:'Orbitron',monospace;font-size:2rem;font-weight:900;
-                        background:linear-gradient(135deg,#00d4ff 0%,#7b2fff 55%,#00d4ff 100%);
-                        background-size:200%;
-                        -webkit-background-clip:text;-webkit-text-fill-color:transparent;
-                        letter-spacing:0.07em;animation:shimmer 5s linear infinite;">
-                PARENTSHIELD AI
-            </div>
-            <div class="login-tagline">&#x25C6; Next-Gen Child Safety Platform &#x25C6;</div>
-        </div>
-
-        <div class="login-card">
-            <div class="c c-tl"></div><div class="c c-tr"></div>
-            <div class="c c-bl"></div><div class="c c-br"></div>
-
-            <span class="login-shield">&#x1F6E1;&#xFE0F;</span>
-
-            <div class="auth-sep">Secure Authentication</div>
-        </div>
-
-        <div class="sys-status">
-            <span><span class="sys-dot"></span>ONLINE</span>
-            <span>&#x2022; AES-256 &#x2022;</span>
-            <span>&#x2022; v2.0.0 &#x2022;</span>
-        </div>
-    </div>
+    <div class="orb orb1"></div>
+    <div class="orb orb2"></div>
+    <div class="orb orb3"></div>
     """, unsafe_allow_html=True)
+
+    st.markdown("<div style='height:6vh'></div>", unsafe_allow_html=True)
 
     _, col_c, _ = st.columns([1, 1.15, 1])
     with col_c:
-        # extra spacing to push below the card HTML
-        st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
+        # Card frame — pure HTML, no <style> tags
+        st.markdown("""
+        <div class="lc">
+            <div class="lc-c lc-tl"></div><div class="lc-c lc-tr"></div>
+            <div class="lc-c lc-bl"></div><div class="lc-c lc-br"></div>
+            <span class="ls">&#x1F6E1;&#xFE0F;</span>
+            <div class="lt">PARENTSHIELD AI</div>
+            <div class="ltag">&#x25C6; Next-Gen Child Safety Platform &#x25C6;</div>
+            <div class="las">Secure Authentication</div>
+        </div>
+        """, unsafe_allow_html=True)
+
         key = st.text_input("api_key", type="password", label_visibility="collapsed",
-                            placeholder=" ⬡  Enter API key...")
-        if st.button("&#x26A1;  AUTHENTICATE", use_container_width=True):
+                            placeholder="&#x2B21;  Enter API key...")
+        if st.button("\u23e3  AUTHENTICATE", use_container_width=True):
             if key == API_KEY:
                 st.session_state.authenticated = True
                 st.rerun()
             else:
-                st.error("&#x26D4;  Access denied — invalid credentials")
+                st.error("\u26d4  Access denied — invalid credentials")
+
+        st.markdown("""
+        <div class="lss">
+            <span><span class="lsd"></span>ONLINE</span>
+            <span>&bull; AES-256 &bull;</span>
+            <span>&bull; v2.0.0 &bull;</span>
+        </div>
+        """, unsafe_allow_html=True)
     st.stop()
 
 # ══════════════════════════════════════════════════════════
@@ -547,26 +534,26 @@ def send(cmd):
     st.toast(f"Command dispatched → `{cmd}`", icon="⚡")
 
 controls = [
-    ("[LCK] Lock Device",      "lock_phone",       "danger"),
-    ("[NET-] Disable Net",     "disable_internet", "danger"),
-    ("[NET+] Enable Net",      "enable_internet",  "success"),
-    ("[CAM] Screenshot",       "take_screenshot",  "default"),
-    ("[SND] Ring Alarm",       "ring_phone",       "warn"),
-    ("[GPS] Get Location",     "get_location",     "default"),
-    ("[MUT] Mute Audio",       "mute_phone",       "default"),
-    ("[VOL] Unmute Audio",     "unmute_phone",     "default"),
-    ("[RBT] Reboot Device",    "reboot_device",    "danger"),
+    # (label,                      command,            style)
+    ("\u29BF  LOCK DEVICE",         "lock_phone",       "danger"),
+    ("\u2298  KILL NETWORK",        "disable_internet", "danger"),
+    ("\u2295  RESTORE NET",         "enable_internet",  "success"),
+    ("\u25A6  CAPTURE SCREEN",      "take_screenshot",  "default"),
+    ("\u25CE  PING DEVICE",         "ring_phone",       "warn"),
+    ("\u2316  GET LOCATION",        "get_location",     "default"),
+    ("\u29B8  MUTE AUDIO",          "mute_phone",       "default"),
+    ("\u29BE  UNMUTE AUDIO",        "unmute_phone",     "default"),
+    ("\u27F3  REBOOT SYS",          "reboot_device",    "danger"),
 ]
 
 ctrl_cols = st.columns(3)
 for idx, (label, cmd, style) in enumerate(controls):
     with ctrl_cols[idx % 3]:
-        if style in ("danger", "success", "warn"):
-            st.markdown(f'<div class="btn-{style}">', unsafe_allow_html=True)
+        wrap = f'btn-{style} ctrl-btn' if style in ("danger","success","warn") else "ctrl-btn"
+        st.markdown(f'<div class="{wrap}">', unsafe_allow_html=True)
         if st.button(label, key=f"ctrl_{cmd}", use_container_width=True):
             send(cmd)
-        if style in ("danger", "success", "warn"):
-            st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
 neon_divider()
 
@@ -578,7 +565,7 @@ col_cust, col_hist = st.columns([1, 1.6])
 with col_cust:
     section_header("&#x232A;_", "Custom Command", "Send any raw command string")
     custom = st.text_input("CMD", placeholder="> clear_cache", label_visibility="collapsed")
-    if st.button("[TX] DISPATCH", use_container_width=True) and custom.strip():
+    if st.button("\u21a3  TX DISPATCH", use_container_width=True) and custom.strip():
         send(custom.strip())
 
 with col_hist:
@@ -623,7 +610,7 @@ with col_ba:
     section_header("&#x2295;", "Add to Blocklist", "Enter package identifier")
     new_pkg = st.text_input("PKG", placeholder="com.example.app", label_visibility="collapsed")
     st.markdown('<div class="btn-danger">', unsafe_allow_html=True)
-    if st.button("[&#x2297;] BLOCK APP", use_container_width=True) and new_pkg.strip():
+    if st.button("\u2298  BLOCK APP", use_container_width=True) and new_pkg.strip():
         requests.post(f"{SERVER}/blocked-apps", json={"package": new_pkg.strip()}, headers=HEADERS)
         st.success(f"Blocked: `{new_pkg.strip()}`")
         st.rerun()

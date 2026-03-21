@@ -360,14 +360,16 @@ if not st.session_state.authenticated:
         </div>
         """, unsafe_allow_html=True)
 
-        key = st.text_input("api_key", type="password", label_visibility="collapsed",
-                            placeholder="&#x2B21;  Enter API key...")
-        if st.button("\u23e3  AUTHENTICATE", use_container_width=True):
-            if key == API_KEY:
-                st.session_state.authenticated = True
-                st.rerun()
-            else:
-                st.error("\u26d4  Access denied — invalid credentials")
+        with st.form("login_form", border=False):
+            key = st.text_input("api_key", type="password", label_visibility="collapsed",
+                                placeholder="\u2B21  Enter API key...")
+            submitted = st.form_submit_button("\u23e3  AUTHENTICATE", use_container_width=True)
+            if submitted:
+                if key == API_KEY:
+                    st.session_state.authenticated = True
+                    st.rerun()
+                else:
+                    st.error("\u26d4  Access denied — invalid credentials")
 
         st.markdown("""
         <div class="lss">
@@ -459,13 +461,20 @@ col_map, col_act = st.columns([1, 1.65])
 
 with col_map:
     section_header("&#x25CE;", "GPS Location", "Last known coordinates")
-    if not df.empty and "lat" in df.columns:
-        coords = df.dropna(subset=["lat","lon"])
-        if not coords.empty:
-            st.map(coords[['lat','lon']].tail(1), use_container_width=True)
+    try:
+        loc = requests.get(f"{SERVER}/location", headers=HEADERS).json().get("location")
+        if loc:
+            lat, lon, ts = loc
+            st.map(pd.DataFrame([{"lat": lat, "lon": lon}]), use_container_width=True)
+            st.markdown(f"""
+            <div style="font-family:'Share Tech Mono',monospace;font-size:0.68rem;
+                        color:rgba(0,212,255,0.5);margin-top:0.4rem;text-align:center;">
+                &#x2316; {lat:.5f}, {lon:.5f}<br>
+                <span style="color:rgba(0,212,255,0.3);font-size:0.6rem;">{ts}</span>
+            </div>""", unsafe_allow_html=True)
         else:
             st.info("No GPS fix available.")
-    else:
+    except Exception:
         st.info("Awaiting location data...")
 
 with col_act:

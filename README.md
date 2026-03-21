@@ -72,7 +72,6 @@ The web dashboard shows:
 - Pandas
 
 ### Phone Automation
-- MacroDroid
 - Tasker
 
 ---

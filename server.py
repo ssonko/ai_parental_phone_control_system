@@ -5,6 +5,8 @@ from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
 import sqlite3
 import os
+import json
+import anthropic
 
 app = FastAPI()
 
@@ -52,6 +54,38 @@ status TEXT
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS blocked_apps(
 package TEXT UNIQUE
+)
+""")
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS points(
+device TEXT,
+amount INTEGER,
+reason TEXT,
+timestamp TEXT
+)
+""")
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS child_profile(
+device TEXT PRIMARY KEY,
+name TEXT,
+age INTEGER
+)
+""")
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS ai_recommendations(
+id INTEGER PRIMARY KEY AUTOINCREMENT,
+device TEXT,
+app_name TEXT,
+package TEXT,
+reason TEXT,
+risk_level TEXT,
+action TEXT,
+category TEXT,
+timestamp TEXT,
+applied INTEGER DEFAULT 0
 )
 """)
 
@@ -156,8 +190,78 @@ def bedtime_on():
 def bedtime_off():
     send_command(DEVICE_ID,"enable_internet")
 
+def run_ai_analysis(device=DEVICE_ID):
+    cursor.execute("SELECT age, name FROM child_profile WHERE device=?", (device,))
+    row = cursor.fetchone()
+    age = row[0] if row else 13
+    name = row[1] if row else "the child"
+
+    cursor.execute("SELECT package FROM blocked_apps")
+    already_blocked = [r[0] for r in cursor.fetchall()]
+
+    cursor.execute("SELECT package FROM ai_recommendations WHERE device=? AND applied=1", (device,))
+    already_applied = [r[0] for r in cursor.fetchall()]
+    exclude = list(set(already_blocked + already_applied))
+
+    ai_client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+
+    prompt = f"""You are a child digital safety expert. A parent needs help protecting their {age}-year-old child ({name}) on Android.
+
+Provide a JSON array of apps, platforms, or digital threats to block or monitor for a {age}-year-old in {datetime.now().year}.
+
+Consider:
+- Age-appropriate restrictions for a {age}-year-old
+- Popular social media, video, gaming, and messaging apps used by kids this age
+- Apps known for predatory behaviour, anonymous strangers, unmoderated content, or self-harm risks
+- Trending platforms gaining popularity with children that carry risks
+- Apps with excessive screen time mechanics or addictive design targeting minors
+
+Exclude these already-blocked packages: {exclude}
+
+Return ONLY a valid JSON array, no other text:
+[
+  {{
+    "app_name": "App Name",
+    "package": "com.example.package",
+    "reason": "Specific risk for a {age}-year-old",
+    "risk_level": "high|medium|low",
+    "action": "block|monitor",
+    "category": "social_media|video|gaming|messaging|other"
+  }}
+]
+
+Include 10-15 real apps with correct Android package names. Prioritise high-risk items first."""
+
+    message = ai_client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=2000,
+        messages=[{"role": "user", "content": prompt}]
+    )
+
+    recs = json.loads(message.content[0].text)
+    for rec in recs:
+        pkg = rec.get("package", "")
+        if not pkg or pkg in exclude:
+            continue
+        cursor.execute("""
+            INSERT INTO ai_recommendations
+            (device, app_name, package, reason, risk_level, action, category, timestamp, applied)
+            VALUES (?,?,?,?,?,?,?,?,0)
+        """, (
+            device,
+            rec.get("app_name", ""),
+            pkg,
+            rec.get("reason", ""),
+            rec.get("risk_level", "medium"),
+            rec.get("action", "monitor"),
+            rec.get("category", "other"),
+            str(datetime.now())
+        ))
+    conn.commit()
+
 scheduler.add_job(bedtime_on, 'cron', hour=BEDTIME_HOUR)
 scheduler.add_job(bedtime_off, 'cron', hour=WAKE_HOUR)
+scheduler.add_job(run_ai_analysis, 'cron', day_of_week='mon', hour=3)
 scheduler.start()
 
 @app.get("/commands/history")
@@ -188,6 +292,117 @@ def remove_blocked_app(package: str, _=Depends(require_key)):
     cursor.execute("DELETE FROM blocked_apps WHERE package=?", (package,))
     conn.commit()
     return {"status": "removed"}
+
+class PointsAward(BaseModel):
+    device: str
+    amount: int
+    reason: str = ""
+
+class PointsRedeem(BaseModel):
+    device: str
+    minutes: int
+
+@app.get("/points/{device}")
+def get_points(device: str, _=Depends(require_key)):
+    cursor.execute("SELECT COALESCE(SUM(amount),0) FROM points WHERE device=?", (device,))
+    total = cursor.fetchone()[0]
+    cursor.execute("SELECT amount, reason, timestamp FROM points WHERE device=? ORDER BY rowid DESC LIMIT 20", (device,))
+    history = [{"amount": r[0], "reason": r[1], "timestamp": r[2]} for r in cursor.fetchall()]
+    return {"total": total, "history": history}
+
+@app.post("/points/award")
+def award_points(body: PointsAward, _=Depends(require_key)):
+    cursor.execute(
+        "INSERT INTO points VALUES (?,?,?,?)",
+        (body.device, body.amount, body.reason, str(datetime.now()))
+    )
+    conn.commit()
+    return {"status": "awarded", "amount": body.amount}
+
+@app.post("/points/redeem")
+def redeem_points(body: PointsRedeem, _=Depends(require_key)):
+    from datetime import timedelta
+    cursor.execute("SELECT COALESCE(SUM(amount),0) FROM points WHERE device=?", (body.device,))
+    total = cursor.fetchone()[0]
+    cost = body.minutes * 10
+    if total < cost:
+        raise HTTPException(status_code=400, detail=f"Not enough points. Need {cost}, have {total}.")
+    cursor.execute(
+        "INSERT INTO points VALUES (?,?,?,?)",
+        (body.device, -cost, f"Redeemed {body.minutes} min screen time", str(datetime.now()))
+    )
+    conn.commit()
+    send_command(body.device, "unlock_phone")
+    relock_time = datetime.now() + timedelta(minutes=body.minutes)
+    scheduler.add_job(
+        send_command, 'date',
+        run_date=relock_time,
+        args=[body.device, "lock_phone"],
+        id=f"relock_{body.device}",
+        replace_existing=True,
+        misfire_grace_time=60,
+    )
+    return {"status": "redeemed", "minutes": body.minutes, "points_spent": cost, "remaining": total - cost}
+
+class ChildProfile(BaseModel):
+    device: str
+    name: str
+    age: int
+
+@app.get("/profile/{device}")
+def get_profile(device: str, _=Depends(require_key)):
+    cursor.execute("SELECT name, age FROM child_profile WHERE device=?", (device,))
+    row = cursor.fetchone()
+    return {"name": row[0], "age": row[1]} if row else {"name": None, "age": None}
+
+@app.post("/profile")
+def set_profile(body: ChildProfile, _=Depends(require_key)):
+    cursor.execute("INSERT OR REPLACE INTO child_profile VALUES (?,?,?)",
+                   (body.device, body.name, body.age))
+    conn.commit()
+    return {"status": "saved"}
+
+@app.post("/ai/analyze")
+def trigger_ai_analysis(_=Depends(require_key)):
+    try:
+        run_ai_analysis()
+        return {"status": "analysis complete"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/ai/recommendations/{device}")
+def get_recommendations(device: str, _=Depends(require_key)):
+    cursor.execute("""
+        SELECT id, app_name, package, reason, risk_level, action, category, timestamp, applied
+        FROM ai_recommendations WHERE device=?
+        ORDER BY CASE risk_level WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END, timestamp DESC
+    """, (device,))
+    rows = cursor.fetchall()
+    return {"data": [
+        {"id": r[0], "app_name": r[1], "package": r[2], "reason": r[3],
+         "risk_level": r[4], "action": r[5], "category": r[6], "timestamp": r[7], "applied": r[8]}
+        for r in rows
+    ]}
+
+@app.post("/ai/apply/{rec_id}")
+def apply_recommendation(rec_id: int, _=Depends(require_key)):
+    cursor.execute("SELECT package FROM ai_recommendations WHERE id=?", (rec_id,))
+    row = cursor.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Not found")
+    try:
+        cursor.execute("INSERT INTO blocked_apps VALUES (?)", (row[0],))
+    except sqlite3.IntegrityError:
+        pass
+    cursor.execute("UPDATE ai_recommendations SET applied=1 WHERE id=?", (rec_id,))
+    conn.commit()
+    return {"status": "applied"}
+
+@app.delete("/ai/recommendations/{rec_id}")
+def dismiss_recommendation(rec_id: int, _=Depends(require_key)):
+    cursor.execute("DELETE FROM ai_recommendations WHERE id=?", (rec_id,))
+    conn.commit()
+    return {"status": "dismissed"}
 
 @app.get("/")
 def root():

@@ -425,6 +425,30 @@ st.markdown("""
 neon_divider()
 
 # ══════════════════════════════════════════════════════════
+#  CHILD PROFILE
+# ══════════════════════════════════════════════════════════
+try:
+    profile = requests.get(f"{SERVER}/profile/child_phone", headers=HEADERS).json()
+except Exception:
+    profile = {"name": None, "age": None}
+
+with st.expander("Child Profile", expanded=not profile.get("name")):
+    col_pn, col_pa, col_ps = st.columns([2, 1, 1])
+    with col_pn:
+        p_name = st.text_input("Child's Name", value=profile.get("name") or "", key="p_name")
+    with col_pa:
+        p_age = st.number_input("Age", min_value=4, max_value=17, value=profile.get("age") or 10, key="p_age")
+    with col_ps:
+        st.markdown("<div style='margin-top:1.8rem;'>", unsafe_allow_html=True)
+        if st.button("Save Profile", use_container_width=True, key="btn_profile"):
+            requests.post(f"{SERVER}/profile", json={"device":"child_phone","name":p_name,"age":p_age}, headers=HEADERS)
+            st.success("Saved")
+            st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+
+neon_divider()
+
+# ══════════════════════════════════════════════════════════
 #  DATA FETCH
 # ══════════════════════════════════════════════════════════
 try:
@@ -545,6 +569,7 @@ def send(cmd):
 controls = [
     # (label,                      command,            style)
     ("\u29BF  LOCK DEVICE",         "lock_phone",       "danger"),
+    ("\u29BE  UNLOCK DEVICE",       "unlock_phone",     "success"),
     ("\u2298  KILL NETWORK",        "disable_internet", "danger"),
     ("\u2295  RESTORE NET",         "enable_internet",  "success"),
     ("\u25A6  CAPTURE SCREEN",      "take_screenshot",  "default"),
@@ -587,6 +612,152 @@ with col_hist:
             st.info("No commands in history.")
     except Exception:
         st.warning("Could not reach command history endpoint.")
+
+neon_divider()
+
+# ══════════════════════════════════════════════════════════
+#  USAGE POINTS
+# ══════════════════════════════════════════════════════════
+section_header("&#x2605;", "Usage Points", "Reward screen time with points", color="#f7c948")
+
+try:
+    pts_data = requests.get(f"{SERVER}/points/child_phone", headers=HEADERS).json()
+    total_pts = pts_data.get("total", 0)
+    pts_history = pts_data.get("history", [])
+except Exception:
+    total_pts = 0
+    pts_history = []
+
+col_pts_bal, col_pts_award, col_pts_redeem = st.columns(3)
+
+with col_pts_bal:
+    st.markdown(f"""
+    <div style="background:linear-gradient(135deg,rgba(247,201,72,0.12),rgba(247,201,72,0.04));
+                border:1px solid rgba(247,201,72,0.3);border-radius:12px;padding:1.2rem;text-align:center;">
+        <div style="font-family:'Orbitron',monospace;font-size:2.4rem;color:#f7c948;font-weight:700;">
+            {total_pts}
+        </div>
+        <div style="font-size:0.75rem;color:rgba(247,201,72,0.6);letter-spacing:0.15em;margin-top:0.2rem;">
+            POINTS BALANCE
+        </div>
+        <div style="font-size:0.65rem;color:rgba(200,223,240,0.4);margin-top:0.5rem;">
+            10 pts = 1 minute screen time
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+with col_pts_award:
+    section_header("&#x2795;", "Award Points", "Give points for good behaviour")
+    award_reason = st.text_input("Reason", placeholder="Completed homework", key="award_reason", label_visibility="collapsed")
+    award_amt = st.number_input("Points", min_value=1, max_value=500, value=50, key="award_amt")
+    st.markdown('<div style="margin-top:0.3rem;">', unsafe_allow_html=True)
+    if st.button("\u2605  AWARD POINTS", use_container_width=True, key="btn_award"):
+        requests.post(f"{SERVER}/points/award", json={"device":"child_phone","amount":award_amt,"reason":award_reason}, headers=HEADERS)
+        st.success(f"+{award_amt} pts awarded")
+        st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
+
+with col_pts_redeem:
+    section_header("&#x23F1;", "Redeem Screen Time", "Spend points for minutes")
+    redeem_mins = st.number_input("Minutes", min_value=1, max_value=120, value=30, key="redeem_mins")
+    cost_preview = redeem_mins * 10
+    st.markdown(f'<div style="font-size:0.7rem;color:rgba(247,201,72,0.6);margin-bottom:0.4rem;">Cost: {cost_preview} pts &nbsp;|&nbsp; Balance after: {max(0, total_pts - cost_preview)} pts</div>', unsafe_allow_html=True)
+    enough = total_pts >= cost_preview
+    st.markdown(f'<div class="{"btn-success" if enough else "btn-danger"}">', unsafe_allow_html=True)
+    if st.button("\u23F1  UNLOCK FOR TIME", use_container_width=True, key="btn_redeem"):
+        if enough:
+            resp = requests.post(f"{SERVER}/points/redeem", json={"device":"child_phone","minutes":redeem_mins}, headers=HEADERS)
+            if resp.status_code == 200:
+                st.success(f"Unlocked for {redeem_mins} min — auto-locks after")
+                st.rerun()
+        else:
+            st.error(f"Need {cost_preview} pts, only have {total_pts}")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+if pts_history:
+    neon_divider()
+    section_header("&#x21BA;", "Points History", "Recent point transactions")
+    df_pts = pd.DataFrame(pts_history)
+    df_pts["amount"] = df_pts["amount"].apply(lambda x: f"+{x}" if x > 0 else str(x))
+    st.dataframe(df_pts, use_container_width=True, height=180)
+
+neon_divider()
+
+# ══════════════════════════════════════════════════════════
+#  AI THREAT INTELLIGENCE
+# ══════════════════════════════════════════════════════════
+section_header("&#x25C6;", "AI Threat Intelligence", "Age-adjusted app risks & trending threats", color="#7b2fff")
+
+try:
+    recs = requests.get(f"{SERVER}/ai/recommendations/child_phone", headers=HEADERS).json().get("data", [])
+except Exception:
+    recs = []
+
+col_ai_hdr, col_ai_btn = st.columns([3, 1])
+with col_ai_hdr:
+    child_name = profile.get("name") or "child"
+    child_age  = profile.get("age") or "?"
+    st.markdown(f'<div style="font-size:0.78rem;color:rgba(200,223,240,0.5);padding:0.3rem 0;">Analysing risks for <b style="color:#7b2fff;">{child_name}</b>, age <b style="color:#7b2fff;">{child_age}</b> — updated weekly every Monday at 3 AM</div>', unsafe_allow_html=True)
+with col_ai_btn:
+    if st.button("\u25C6  RUN AI SCAN NOW", use_container_width=True, key="btn_ai_scan"):
+        with st.spinner("AI analysing threats..."):
+            resp = requests.post(f"{SERVER}/ai/analyze", headers=HEADERS)
+            if resp.status_code == 200:
+                st.success("Scan complete")
+                st.rerun()
+            else:
+                st.error(f"Error: {resp.json().get('detail','Unknown error')}")
+
+if recs:
+    risk_colors = {"high": "#ff3040", "medium": "#f7c948", "low": "#00ff88"}
+    cat_icons   = {"social_media": "&#x1F4F1;", "video": "&#x25B6;", "gaming": "&#x1F3AE;",
+                   "messaging": "&#x1F4AC;", "other": "&#x26A0;"}
+
+    pending = [r for r in recs if not r["applied"]]
+    applied = [r for r in recs if r["applied"]]
+
+    if pending:
+        st.markdown(f'<div style="font-size:0.72rem;color:rgba(200,223,240,0.4);margin-bottom:0.5rem;">{len(pending)} pending recommendation{"s" if len(pending)!=1 else ""}</div>', unsafe_allow_html=True)
+        for rec in pending:
+            rc  = risk_colors.get(rec["risk_level"], "#aaa")
+            ico = cat_icons.get(rec["category"], "&#x26A0;")
+            col_info, col_act, col_dis = st.columns([5, 1, 1])
+            with col_info:
+                st.markdown(f"""
+                <div style="background:rgba(123,47,255,0.06);border:1px solid rgba(123,47,255,0.2);
+                            border-left:3px solid {rc};border-radius:6px;padding:0.6rem 0.9rem;margin-bottom:4px;">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span style="font-size:0.9rem;">{ico}</span>
+                        <span style="font-family:'Orbitron',monospace;font-size:0.72rem;color:#c8dff0;font-weight:700;">{rec['app_name']}</span>
+                        <span style="font-size:0.6rem;background:{rc}22;color:{rc};border:1px solid {rc}44;
+                                     border-radius:3px;padding:1px 6px;letter-spacing:0.1em;">
+                            {rec['risk_level'].upper()}
+                        </span>
+                        <span style="font-size:0.6rem;color:rgba(200,223,240,0.35);">{rec['action'].upper()}</span>
+                    </div>
+                    <div style="font-size:0.68rem;color:rgba(200,223,240,0.5);margin-top:4px;">{rec['reason']}</div>
+                    <div style="font-size:0.6rem;color:rgba(200,223,240,0.25);margin-top:2px;font-family:'Share Tech Mono',monospace;">{rec['package']}</div>
+                </div>
+                """, unsafe_allow_html=True)
+            with col_act:
+                st.markdown('<div class="btn-danger" style="margin-top:0.3rem;">', unsafe_allow_html=True)
+                if st.button("BLOCK", key=f"ai_apply_{rec['id']}", use_container_width=True):
+                    requests.post(f"{SERVER}/ai/apply/{rec['id']}", headers=HEADERS)
+                    st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
+            with col_dis:
+                st.markdown('<div style="margin-top:0.3rem;">', unsafe_allow_html=True)
+                if st.button("SKIP", key=f"ai_dis_{rec['id']}", use_container_width=True):
+                    requests.delete(f"{SERVER}/ai/recommendations/{rec['id']}", headers=HEADERS)
+                    st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
+
+    if applied:
+        with st.expander(f"Applied recommendations ({len(applied)})"):
+            for rec in applied:
+                st.markdown(f'<div style="font-size:0.7rem;color:rgba(0,255,136,0.6);padding:2px 0;">&#x2713; {rec["app_name"]} — {rec["package"]}</div>', unsafe_allow_html=True)
+else:
+    st.info("No recommendations yet — run an AI scan or wait for the weekly refresh.")
 
 neon_divider()
 

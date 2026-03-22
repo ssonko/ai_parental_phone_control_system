@@ -93,7 +93,7 @@ Claude AI automatically analyses app risks based on the child's age and current 
 | Backend API | Python, FastAPI |
 | Database | SQLite |
 | Scheduler | APScheduler |
-| AI Engine | Claude (claude-sonnet-4-6) via Anthropic SDK |
+| AI Engine | GPT-4o via OpenAI SDK |
 | Dashboard | Streamlit, Pandas |
 | Phone Automation | Tasker (Android) |
 | Hosting | Railway |
@@ -168,4 +168,4 @@ Two tasks required on the child's phone:
 |---|---|---|
 | `API_KEY` | `changeme123` | Authentication key — change before deploying |
 | `SERVER_URL` | `http://localhost:8000` | Backend URL used by dashboard |
-| `ANTHROPIC_API_KEY` | — | Required for AI Threat Intelligence feature |
+| `OPENAI_API_KEY` | — | Required for AI Threat Intelligence feature |

@@ -6,7 +6,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 import sqlite3
 import os
 import json
-import anthropic
+from openai import OpenAI
 
 app = FastAPI()
 
@@ -203,7 +203,7 @@ def run_ai_analysis(device=DEVICE_ID):
     already_applied = [r[0] for r in cursor.fetchall()]
     exclude = list(set(already_blocked + already_applied))
 
-    ai_client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+    ai_client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
     prompt = f"""You are a child digital safety expert. A parent needs help protecting their {age}-year-old child ({name}) on Android.
 
@@ -232,13 +232,15 @@ Return ONLY a valid JSON array, no other text:
 
 Include 10-15 real apps with correct Android package names. Prioritise high-risk items first."""
 
-    message = ai_client.messages.create(
-        model="claude-sonnet-4-6",
+    response = ai_client.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": prompt}],
         max_tokens=2000,
-        messages=[{"role": "user", "content": prompt}]
+        response_format={"type": "json_object"}
     )
 
-    recs = json.loads(message.content[0].text)
+    raw = json.loads(response.choices[0].message.content)
+    recs = raw if isinstance(raw, list) else next(iter(raw.values()))
     for rec in recs:
         pkg = rec.get("package", "")
         if not pkg or pkg in exclude:

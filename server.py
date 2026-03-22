@@ -75,6 +75,18 @@ age INTEGER
 """)
 
 cursor.execute("""
+CREATE TABLE IF NOT EXISTS alerts(
+id INTEGER PRIMARY KEY AUTOINCREMENT,
+device TEXT,
+sender TEXT,
+message TEXT,
+matched_keywords TEXT,
+timestamp TEXT,
+reviewed INTEGER DEFAULT 0
+)
+""")
+
+cursor.execute("""
 CREATE TABLE IF NOT EXISTS ai_recommendations(
 id INTEGER PRIMARY KEY AUTOINCREMENT,
 device TEXT,
@@ -136,9 +148,23 @@ def get_command(device: str):
 
     return {"command": None}
 
+ALERT_KEYWORDS = [
+    # violence
+    "kill","murder","stab","shoot","beat up","fight","weapon","gun","knife",
+    # drugs
+    "drug","weed","cocaine","pills","molly","xanax","lean","smoke","vape",
+    # sexual
+    "nude","nudes","send pics","sex","porn","meet up","come over","alone",
+    # self harm
+    "suicide","self harm","cut myself","end it","hate myself","want to die",
+    # bullying
+    "ugly","loser","nobody likes","kill yourself","kys","freak",
+    # predatory
+    "secret","don't tell","just us","keep this between","how old are you","snapchat me",
+]
+
 @app.post("/report")
 def report(data: DeviceReport):
-
     cursor.execute(
         "INSERT INTO logs VALUES (?,?,?,?,?,?,?)",
         (
@@ -151,9 +177,40 @@ def report(data: DeviceReport):
             str(data.timestamp)
         )
     )
-    conn.commit()
 
+    if data.message and data.app == "SMS":
+        msg_lower = data.message.lower()
+        matched = [kw for kw in ALERT_KEYWORDS if kw in msg_lower]
+        if matched:
+            sender = ""
+            if "FROM:" in data.message:
+                try:
+                    sender = data.message.split("FROM:")[1].split(" MSG:")[0].strip()
+                except Exception:
+                    pass
+            cursor.execute(
+                "INSERT INTO alerts (device, sender, message, matched_keywords, timestamp) VALUES (?,?,?,?,?)",
+                (data.device, sender, data.message, ", ".join(matched), str(data.timestamp))
+            )
+
+    conn.commit()
     return {"status":"logged"}
+
+@app.get("/alerts")
+def get_alerts(_=Depends(require_key)):
+    cursor.execute("SELECT id, device, sender, message, matched_keywords, timestamp, reviewed FROM alerts ORDER BY id DESC LIMIT 100")
+    rows = cursor.fetchall()
+    return {"data": [
+        {"id": r[0], "device": r[1], "sender": r[2], "message": r[3],
+         "matched_keywords": r[4], "timestamp": r[5], "reviewed": r[6]}
+        for r in rows
+    ]}
+
+@app.post("/alerts/{alert_id}/reviewed")
+def mark_reviewed(alert_id: int, _=Depends(require_key)):
+    cursor.execute("UPDATE alerts SET reviewed=1 WHERE id=?", (alert_id,))
+    conn.commit()
+    return {"status": "marked reviewed"}
 
 @app.get("/logs")
 def get_logs():

@@ -472,11 +472,59 @@ with m2:
 with m3:
     events = len(df) if not df.empty else 0
     st.metric("TOTAL EVENTS", events)
+try:
+    alerts_data = requests.get(f"{SERVER}/alerts", headers=HEADERS).json().get("data", [])
+except Exception:
+    alerts_data = []
+
+unreviewed = [a for a in alerts_data if not a["reviewed"]]
+
 with m4:
-    flags = int(df["message"].fillna("").str.lower().str.contains("|".join(risky_words)).sum()) if not df.empty and "message" in df.columns else 0
-    st.metric("SAFETY FLAGS", flags, delta="CLEAR" if not flags else f"{flags} REVIEW")
+    st.metric("SAFETY FLAGS", len(unreviewed), delta="CLEAR" if not unreviewed else f"{len(unreviewed)} URGENT")
 
 neon_divider()
+
+# ══════════════════════════════════════════════════════════
+#  SMS ALERTS
+# ══════════════════════════════════════════════════════════
+if alerts_data:
+    section_header("&#x26A0;", "SMS Alerts", "Suspicious messages detected", color="#ff3040")
+    for alert in alerts_data:
+        reviewed = alert["reviewed"]
+        border_color = "rgba(255,48,64,0.6)" if not reviewed else "rgba(255,255,255,0.1)"
+        bg_color     = "rgba(255,48,64,0.07)" if not reviewed else "rgba(255,255,255,0.02)"
+        keywords     = alert.get("matched_keywords", "")
+        sender       = alert.get("sender", "Unknown")
+        msg          = alert.get("message", "")
+        if "MSG:" in msg:
+            msg = msg.split("MSG:", 1)[1].strip()
+
+        col_msg, col_btn = st.columns([5, 1])
+        with col_msg:
+            st.markdown(f"""
+            <div style="background:{bg_color};border:1px solid {border_color};
+                        border-radius:8px;padding:0.7rem 1rem;margin-bottom:6px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                    <span style="font-family:'Share Tech Mono',monospace;font-size:0.72rem;color:#ff7080;">
+                        &#x26A0; FROM: {sender}
+                    </span>
+                    <span style="font-size:0.6rem;color:rgba(200,223,240,0.3);">{alert['timestamp']}</span>
+                </div>
+                <div style="font-size:0.78rem;color:#c8dff0;margin-bottom:6px;">"{msg}"</div>
+                <div style="font-size:0.62rem;color:rgba(255,100,100,0.7);">
+                    Matched: <b>{keywords}</b>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        with col_btn:
+            if not reviewed:
+                st.markdown('<div style="margin-top:0.6rem;">', unsafe_allow_html=True)
+                if st.button("REVIEWED", key=f"rev_{alert['id']}", use_container_width=True):
+                    requests.post(f"{SERVER}/alerts/{alert['id']}/reviewed", headers=HEADERS)
+                    st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
+
+    neon_divider()
 
 # ══════════════════════════════════════════════════════════
 #  LOCATION + ACTIVITY
@@ -706,7 +754,12 @@ with col_ai_btn:
                 st.success("Scan complete")
                 st.rerun()
             else:
-                st.error(f"Error: {resp.json().get('detail','Unknown error')}")
+                try:
+                    detail = resp.json()
+                    msg = detail.get("detail", str(detail)) if isinstance(detail, dict) else str(detail)
+                except Exception:
+                    msg = resp.text
+                st.error(f"Error: {msg}")
 
 if recs:
     risk_colors = {"high": "#ff3040", "medium": "#f7c948", "low": "#00ff88"}

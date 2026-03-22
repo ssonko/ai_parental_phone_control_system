@@ -464,7 +464,7 @@ risky_words = ["drug","fight","kill","nude"]
 # ══════════════════════════════════════════════════════════
 m1, m2, m3, m4 = st.columns(4)
 with m1:
-    batt = df["battery"].dropna().iloc[-1] if not df.empty and "battery" in df.columns and not df["battery"].dropna().empty else "—"
+    batt = df["battery"].dropna().iloc[0] if not df.empty and "battery" in df.columns and not df["battery"].dropna().empty else "—"
     st.metric("BATTERY LVL", f"{batt}%" if batt != "—" else "—")
 with m2:
     apps = df["app"].nunique() if not df.empty and "app" in df.columns else 0

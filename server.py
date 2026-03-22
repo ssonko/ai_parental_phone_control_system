@@ -297,7 +297,7 @@ Include 10-15 real apps with correct Android package names. Prioritise high-risk
     )
 
     raw = json.loads(response.choices[0].message.content)
-    recs = raw if isinstance(raw, list) else next(iter(raw.values()))
+    recs = raw if isinstance(raw, list) else next((v for v in raw.values() if isinstance(v, list)), [])
     for rec in recs:
         pkg = rec.get("package", "")
         if not pkg or pkg in exclude:

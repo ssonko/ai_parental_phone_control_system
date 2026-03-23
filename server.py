@@ -1,5 +1,5 @@
 
-from fastapi import FastAPI, HTTPException, Depends, Header
+from fastapi import FastAPI, HTTPException, Depends, Header, Request
 from pydantic import BaseModel
 from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -164,7 +164,19 @@ ALERT_KEYWORDS = [
 ]
 
 @app.post("/report")
-def report(data: DeviceReport):
+async def report(request: Request):
+    import re
+    raw = await request.body()
+    clean = re.sub(rb'[\x00-\x1f\x7f]', b' ', raw)
+    try:
+        data_dict = json.loads(clean)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Could not parse body: {e}")
+    try:
+        data = DeviceReport(**data_dict)
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
     cursor.execute(
         "INSERT INTO logs VALUES (?,?,?,?,?,?,?)",
         (
